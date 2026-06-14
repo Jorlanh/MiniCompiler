@@ -137,9 +137,9 @@ O bytecode nao mira Assembly x86. Ele roda em uma VM de pilha propria para mante
 
 ## Integrantes
 
-Andressa Galvão
-Deivide Sobral
-Jorlan Heider
+Andressa Galvão,
+Deivide Sobral,
+Jorlan Heider.
 
 ---
 
