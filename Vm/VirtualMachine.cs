@@ -11,8 +11,9 @@ public sealed class VirtualMachine
     private readonly TextReader _input;
     private readonly TextWriter _output;
     private readonly Stack<object> _stack = new();
-    private readonly object[] _memory;
     private int _pc;
+
+    private static readonly Dictionary<string, object> _globalMemory = new(StringComparer.Ordinal);
 
     public VirtualMachine(string sourceName, BytecodeProgram program, TextReader input, TextWriter output)
     {
@@ -20,7 +21,6 @@ public sealed class VirtualMachine
         _program = program;
         _input = input;
         _output = output;
-        _memory = program.VariableTypes.Select(DefaultValue).ToArray();
     }
 
     public void Run()
@@ -41,10 +41,16 @@ public sealed class VirtualMachine
                         _stack.Push((bool)instruction.Operand!);
                         break;
                     case OpCode.LoadVar:
-                        _stack.Push(_memory[(int)instruction.Operand!]);
+                        var loadName = (string)instruction.Operand!;
+                        if (!_globalMemory.TryGetValue(loadName, out var storedValue))
+                        {
+                            RuntimeFail(instruction, $"A variavel '{loadName}' nao foi inicializada na memoria global.");
+                        }
+                        _stack.Push(storedValue);
                         break;
                     case OpCode.StoreVar:
-                        _memory[(int)instruction.Operand!] = Pop(instruction);
+                        var storeName = (string)instruction.Operand!;
+                        _globalMemory[storeName] = Pop(instruction);
                         break;
                     case OpCode.Add:
                         BinaryInt(instruction, (a, b) => a + b);
@@ -259,10 +265,5 @@ public sealed class VirtualMachine
             nameof(VirtualMachine),
             instruction.Location,
             message);
-    }
-
-    private static object DefaultValue(TypeSymbol type)
-    {
-        return type == TypeSymbol.Int ? 0 : false;
     }
 }

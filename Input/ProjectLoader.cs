@@ -11,7 +11,12 @@ public static class ProjectLoader
         ".mini",
         ".mc",
         ".mcomp",
-        ".txt"
+        ".txt",
+        ".java",
+        ".py",
+        ".js",
+        ".ts",
+        ".cs"
     };
 
     public static SourceFile FromText(string sourceText)

@@ -49,16 +49,25 @@ public sealed class BytecodeEmitter : IStatementVisitor<object?>, IExpressionVis
         if (statement.Initializer is not null)
         {
             statement.Initializer.Accept(this);
-            Emit(OpCode.StoreVar, Slot(statement.Symbol, statement.Location), statement.Location);
+        }
+        else
+        {
+            if (statement.DeclaredType == TypeSymbol.Int)
+                Emit(OpCode.PushInt, 0, statement.Location);
+            else
+                Emit(OpCode.PushBool, false, statement.Location);
         }
 
+        var name = statement.Symbol?.Name ?? throw MissingSymbol(statement.Location);
+        Emit(OpCode.StoreVar, name, statement.Location);
         return null;
     }
 
     public object? VisitAssignment(AssignmentStatement statement)
     {
         statement.Value.Accept(this);
-        Emit(OpCode.StoreVar, Slot(statement.Symbol, statement.Location), statement.Location);
+        var name = statement.Symbol?.Name ?? throw MissingSymbol(statement.Location);
+        Emit(OpCode.StoreVar, name, statement.Location);
         return null;
     }
 
@@ -73,7 +82,7 @@ public sealed class BytecodeEmitter : IStatementVisitor<object?>, IExpressionVis
     {
         var symbol = statement.Symbol ?? throw MissingSymbol(statement.Location);
         Emit(symbol.Type == TypeSymbol.Int ? OpCode.ReadInt : OpCode.ReadBool, null, statement.Location);
-        Emit(OpCode.StoreVar, symbol.Slot, statement.Location);
+        Emit(OpCode.StoreVar, symbol.Name, statement.Location);
         return null;
     }
 
@@ -144,7 +153,8 @@ public sealed class BytecodeEmitter : IStatementVisitor<object?>, IExpressionVis
 
     public object? VisitVariable(VariableExpression expression)
     {
-        Emit(OpCode.LoadVar, Slot(expression.Symbol, expression.Location), expression.Location);
+        var name = expression.Symbol?.Name ?? throw MissingSymbol(expression.Location);
+        Emit(OpCode.LoadVar, name, expression.Location);
         return null;
     }
 
@@ -218,11 +228,6 @@ public sealed class BytecodeEmitter : IStatementVisitor<object?>, IExpressionVis
     private void Patch(int instructionIndex, int targetAddress)
     {
         _instructions[instructionIndex] = _instructions[instructionIndex] with { Operand = targetAddress };
-    }
-
-    private int Slot(SymbolInfo? symbol, SourceLocation location)
-    {
-        return symbol?.Slot ?? throw MissingSymbol(location);
     }
 
     private CompilerException MissingSymbol(SourceLocation location)

@@ -47,16 +47,26 @@ internal static class Program
     }
 
     private static int RunInteractive()
+{
+    while (true)
     {
+        Console.WriteLine();
         Console.WriteLine("MiniCompiler - compilador didatico em C#");
         Console.WriteLine("1 - Analisar arquivo");
         Console.WriteLine("2 - Analisar pasta");
         Console.WriteLine("3 - Analisar ZIP");
         Console.WriteLine("4 - Clonar repositorio GitHub e analisar");
         Console.WriteLine("5 - Colar codigo no terminal");
+        Console.WriteLine("6 - Encerrar Compilador (Zerar Memoria)");
         Console.Write("Opcao: ");
 
         var option = Console.ReadLine()?.Trim();
+        
+        if (option == "6")
+        {
+            break;
+        }
+
         IReadOnlyList<SourceFile> sources;
 
         switch (option)
@@ -82,7 +92,7 @@ internal static class Program
                 break;
             default:
                 Console.WriteLine("Opcao invalida.");
-                return 1;
+                continue;
         }
 
         Console.Write("Mostrar TAC? (s/n): ");
@@ -92,8 +102,11 @@ internal static class Program
         Console.Write("Executar depois de compilar? (s/n): ");
         var run = IsYes(Console.ReadLine());
 
-        return CompileMany(sources, run, showTac, showBytecode);
+        CompileMany(sources, run, showTac, showBytecode);
     }
+
+    return 0;
+}
 
     private static IReadOnlyList<SourceFile> LoadSourcesFromOptions(Dictionary<string, string?> options)
     {

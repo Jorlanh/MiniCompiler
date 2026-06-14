@@ -73,6 +73,11 @@ Ao analisar pasta, ZIP ou repositorio, ele procura arquivos:
 - `.mc`
 - `.mcomp`
 - `.txt`
+- `.java`
+- `.py`
+- `.js`
+- `.ts`
+- `.cs`
 
 ## Exemplo da linguagem
 
