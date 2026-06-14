@@ -83,13 +83,25 @@ O MiniCompiler tambem aceita codigo Python puro. Quando o arquivo tem extensao `
 
 Nesse caso, o backend chama o Python instalado na maquina, valida a sintaxe com `ast.parse`, compila com `compile(...)` e devolve para o frontend:
 
-- versao do Python
-- quantidade de linhas
-- quantidade de nos da AST
-- quantidade de instrucoes de bytecode Python no bloco principal
+- `Tokens`
+- `TAC`, usando uma representacao intermediaria do AST Python
+- `Bytecode`, usando o `dis` do CPython
+- `Variaveis`, contando nomes atribuidos no codigo
 - erro de sintaxe com linha, coluna e trecho marcado, quando houver
 
 Esse modo nao executa `input()` automaticamente. Ele valida/compila o Python para evitar travar a interface durante a apresentacao.
+
+## Fallback e painel global
+
+O projeto tem tres camadas de protecao:
+
+- `Program.cs`: captura erros no modo terminal.
+- `WebFrontend.cs`: captura erros globais da interface web e mostra painel amigavel.
+- fases internas: lexer, parser, semantica, TAC, bytecode, VM e Python transformam falhas inesperadas em `CompilerException`.
+
+Quando o erro e do codigo analisado, o painel mostra arquivo, linha, coluna e trecho. Quando o erro e interno do compilador, o painel tambem tenta mostrar classe, metodo, arquivo `.cs` e linha interna.
+
+O editor da aba `Codigo` usa `localStorage`, entao o texto digitado continua na tela depois de clicar em compilar.
 
 ## Exemplo da linguagem
 
@@ -151,3 +163,15 @@ Quando alguma correcao acontece, a tela mostra a linha, a coluna e a alteracao f
 ## Observacoes
 
 O bytecode nao mira Assembly x86. Ele roda em uma VM de pilha propria para manter o projeto menor e mais facil de acompanhar. O TAC existe como uma camada intermediaria visivel com `--show-tac`.
+
+## Integrantes
+
+Andressa Galvão,
+Deivide Sobral,
+Jorlan Heider.
+
+---
+
+## Status do Projeto
+
+Concluído e operacional.

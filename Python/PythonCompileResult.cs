@@ -1,7 +1,12 @@
 namespace MiniCompiler.Python;
 
 public sealed record PythonCompileResult(
+    int TokenCount,
     int LineCount,
+    int IntermediateLineCount,
     int AstNodeCount,
     int BytecodeInstructionCount,
-    string PythonVersion);
+    int VariableCount,
+    string PythonVersion,
+    string IntermediateCode,
+    string BytecodeText);

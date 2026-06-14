@@ -9,11 +9,97 @@ public sealed class PythonCompilerService
     private const string Script = """
         import ast
         import dis
+        import io
         import json
         import platform
         import sys
+        import tokenize
 
         path = sys.argv[1]
+
+        def op_name(operator):
+            names = {
+                ast.Add: "+",
+                ast.Sub: "-",
+                ast.Mult: "*",
+                ast.Div: "/",
+                ast.Mod: "%",
+                ast.Pow: "**",
+            }
+            return names.get(type(operator), type(operator).__name__)
+
+        def as_text(node):
+            try:
+                return ast.unparse(node)
+            except Exception:
+                return type(node).__name__
+
+        def emit_statement(node, lines, indent=0):
+            pad = "    " * indent
+
+            if isinstance(node, ast.Try):
+                lines.append(pad + "try:")
+                emit_statements(node.body, lines, indent + 1)
+                for handler in node.handlers:
+                    name = as_text(handler.type) if handler.type else "Exception"
+                    lines.append(pad + f"except {name}:")
+                    emit_statements(handler.body, lines, indent + 1)
+                return
+
+            if isinstance(node, ast.Assign):
+                target = ", ".join(as_text(target) for target in node.targets)
+                lines.append(pad + f"{target} = {as_text(node.value)}")
+                return
+
+            if isinstance(node, ast.AugAssign):
+                target = as_text(node.target)
+                lines.append(pad + f"{target} = {target} {op_name(node.op)} {as_text(node.value)}")
+                return
+
+            if isinstance(node, ast.If):
+                lines.append(pad + f"if {as_text(node.test)}:")
+                emit_statements(node.body, lines, indent + 1)
+                if node.orelse:
+                    lines.append(pad + "else:")
+                    emit_statements(node.orelse, lines, indent + 1)
+                return
+
+            if isinstance(node, ast.For):
+                lines.append(pad + f"for {as_text(node.target)} in {as_text(node.iter)}:")
+                emit_statements(node.body, lines, indent + 1)
+                return
+
+            if isinstance(node, ast.Expr):
+                lines.append(pad + as_text(node.value))
+                return
+
+            lines.append(pad + as_text(node))
+
+        def emit_statements(nodes, lines, indent=0):
+            for node in nodes:
+                emit_statement(node, lines, indent)
+
+        def count_tokens(source):
+            ignored = {
+                tokenize.ENCODING,
+                tokenize.ENDMARKER,
+                tokenize.NL,
+            }
+
+            return sum(
+                1
+                for token in tokenize.generate_tokens(io.StringIO(source).readline)
+                if token.type not in ignored
+            )
+
+        def collect_variables(tree):
+            variables = set()
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                    variables.add(node.id)
+
+            return sorted(variables)
 
         try:
             with open(path, "r", encoding="utf-8") as handle:
@@ -21,13 +107,22 @@ public sealed class PythonCompilerService
 
             tree = ast.parse(source, filename=path)
             code = compile(source, path, "exec")
+            intermediate = []
+            emit_statements(tree.body, intermediate)
+            bytecode = dis.Bytecode(code).dis()
+            variables = collect_variables(tree)
 
             print(json.dumps({
                 "ok": True,
+                "tokenCount": count_tokens(source),
                 "lineCount": len(source.splitlines()),
+                "intermediateLines": len(intermediate),
                 "astNodes": sum(1 for _ in ast.walk(tree)),
                 "instructions": sum(1 for _ in dis.Bytecode(code)),
-                "version": platform.python_version()
+                "variables": len(variables),
+                "version": platform.python_version(),
+                "intermediateCode": "\n".join(intermediate),
+                "bytecodeText": bytecode
             }))
         except SyntaxError as error:
             print(json.dumps({
@@ -119,10 +214,15 @@ public sealed class PythonCompilerService
         if (ok)
         {
             return new PythonCompileResult(
+                root.GetProperty("tokenCount").GetInt32(),
                 root.GetProperty("lineCount").GetInt32(),
+                root.GetProperty("intermediateLines").GetInt32(),
                 root.GetProperty("astNodes").GetInt32(),
                 root.GetProperty("instructions").GetInt32(),
-                root.GetProperty("version").GetString() ?? "desconhecida");
+                root.GetProperty("variables").GetInt32(),
+                root.GetProperty("version").GetString() ?? "desconhecida",
+                root.GetProperty("intermediateCode").GetString() ?? string.Empty,
+                root.GetProperty("bytecodeText").GetString() ?? string.Empty);
         }
 
         var line = root.GetProperty("line").GetInt32();

@@ -52,22 +52,24 @@ public static class WebFrontend
 
     private static async Task<IResult> AnalyzeCode(HttpContext context)
     {
+        var code = string.Empty;
+
         try
         {
             var form = await context.Request.ReadFormAsync();
-            var code = form["source"].ToString();
+            code = form["source"].ToString();
 
             if (string.IsNullOrWhiteSpace(code))
             {
-                return Html(RenderPage(RenderError("Codigo", "Informe um codigo para compilar."), "codigo"));
+                return Html(RenderPage(RenderError("Codigo", "Informe um codigo para compilar."), "codigo", code));
             }
 
             var sources = new[] { ProjectLoader.FromText(code) };
-            return Html(RenderPage(BuildReport(sources), "codigo"));
+            return Html(RenderPage(BuildReport(sources), "codigo", code));
         }
         catch (Exception exception)
         {
-            return Html(RenderPage(RenderException(exception, "Codigo", string.Empty), "codigo"));
+            return Html(RenderPage(RenderException(exception, "Codigo", code), "codigo", code));
         }
     }
 
@@ -206,13 +208,19 @@ public static class WebFrontend
         builder.AppendLine("</div>");
         builder.AppendLine("<strong>Python</strong>");
         builder.AppendLine("</div>");
-        builder.AppendLine("<p class=\"message\">Codigo Python compilado com sucesso pelo backend CPython.</p>");
+        builder.AppendLine($"<p class=\"message\">Codigo Python compilado com sucesso pelo backend CPython {Escape(result.PythonVersion)}.</p>");
         builder.AppendLine("<div class=\"metrics\">");
-        builder.AppendLine(Metric("Python", result.PythonVersion));
-        builder.AppendLine(Metric("Linhas", result.LineCount));
-        builder.AppendLine(Metric("Nos AST", result.AstNodeCount));
-        builder.AppendLine(Metric("Bytecode py", result.BytecodeInstructionCount));
+        builder.AppendLine(Metric("Tokens", result.TokenCount));
+        builder.AppendLine(Metric("TAC", result.IntermediateLineCount));
+        builder.AppendLine(Metric("Bytecode", result.BytecodeInstructionCount));
+        builder.AppendLine(Metric("Variaveis", result.VariableCount));
         builder.AppendLine("</div>");
+        builder.AppendLine("<details open><summary>TAC</summary>");
+        builder.AppendLine($"<pre>{Escape(result.IntermediateCode)}</pre>");
+        builder.AppendLine("</details>");
+        builder.AppendLine("<details open><summary>Bytecode</summary>");
+        builder.AppendLine($"<pre>{Escape(result.BytecodeText)}</pre>");
+        builder.AppendLine("</details>");
         builder.AppendLine("</article>");
 
         return builder.ToString();
@@ -237,6 +245,8 @@ public static class WebFrontend
               """
             : "<p class=\"empty-detail\">Nao existe uma linha de codigo para marcar neste erro. O problema aconteceu antes de carregar os arquivos.</p>";
 
+        var internalLine = RenderInternalDiagnostic(diagnostic);
+
         return $"""
         <article class="result error">
             <div class="result-heading">
@@ -253,7 +263,30 @@ public static class WebFrontend
                 <div><span>Posicao</span><strong>{Escape(position)}</strong></div>
             </div>
             {snippet}
+            {internalLine}
         </article>
+        """;
+    }
+
+    private static string RenderInternalDiagnostic(DiagnosticInfo diagnostic)
+    {
+        if (string.IsNullOrWhiteSpace(diagnostic.MethodName)
+            && string.IsNullOrWhiteSpace(diagnostic.InternalFile))
+        {
+            return string.Empty;
+        }
+
+        var file = string.IsNullOrWhiteSpace(diagnostic.InternalFile)
+            ? "nao informado"
+            : diagnostic.InternalFile;
+        var line = diagnostic.InternalLine is null ? string.Empty : $":{diagnostic.InternalLine}";
+
+        return $"""
+        <div class="internal-diagnostic">
+            <span>Falha interna capturada</span>
+            <strong>{Escape(diagnostic.ClassName)}.{Escape(diagnostic.MethodName ?? "metodo desconhecido")}</strong>
+            <code>{Escape(file + line)}</code>
+        </div>
         """;
     }
 
@@ -305,12 +338,12 @@ public static class WebFrontend
         """;
     }
 
-    private static string RenderPage(string resultHtml = "", string activeTab = "codigo")
+    private static string RenderPage(string resultHtml = "", string activeTab = "codigo", string? sourceValue = null)
     {
         var codeActive = activeTab == "codigo" ? "active" : "";
         var githubActive = activeTab == "github" ? "active" : "";
         var zipActive = activeTab == "zip" ? "active" : "";
-        var sampleCode = Escape("""
+        var sampleCode = """
             int n = 5;
             int fat = 1;
 
@@ -320,7 +353,9 @@ public static class WebFrontend
             }
 
             print(fat);
-            """);
+            """;
+        var editorCode = Escape(sourceValue ?? sampleCode);
+        var submitted = sourceValue is null ? "false" : "true";
 
         return $$"""
         <!doctype html>
@@ -547,6 +582,11 @@ public static class WebFrontend
                     white-space: nowrap;
                 }
 
+                .result.ok .result-heading > strong {
+                    background: #eaf7ee;
+                    color: var(--ok);
+                }
+
                 .eyebrow {
                     display: block;
                     margin-bottom: 4px;
@@ -652,6 +692,29 @@ public static class WebFrontend
                     line-height: 1.45;
                 }
 
+                .internal-diagnostic {
+                    display: grid;
+                    gap: 4px;
+                    margin-top: 12px;
+                    padding: 12px;
+                    border-radius: 6px;
+                    border: 1px solid #f0c9c6;
+                    background: #fffafa;
+                }
+
+                .internal-diagnostic span {
+                    color: var(--error);
+                    font-size: 12px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                }
+
+                .internal-diagnostic code {
+                    font: 12px Consolas, "Courier New", monospace;
+                    overflow-wrap: anywhere;
+                    color: var(--muted);
+                }
+
                 .corrections {
                     margin-bottom: 12px;
                     border: 1px solid #cde7d6;
@@ -754,7 +817,7 @@ public static class WebFrontend
 
                         <form class="pane {{codeActive}}" data-pane="codigo" method="post" action="/analisar/codigo">
                             <label for="source">Codigo fonte</label>
-                            <textarea id="source" name="source" spellcheck="false">{{sampleCode}}</textarea>
+                            <textarea id="source" name="source" spellcheck="false" data-submitted="{{submitted}}">{{editorCode}}</textarea>
                             <div class="actions">
                                 <button type="submit">Compilar codigo</button>
                             </div>
@@ -785,6 +848,27 @@ public static class WebFrontend
             <script>
                 const tabs = document.querySelectorAll(".tab");
                 const panes = document.querySelectorAll(".pane");
+                const editor = document.getElementById("source");
+                const storageKey = "miniCompiler.source";
+
+                if (editor) {
+                    const saved = localStorage.getItem(storageKey);
+
+                    if (editor.dataset.submitted !== "true" && saved) {
+                        editor.value = saved;
+                    }
+
+                    editor.addEventListener("input", () => {
+                        localStorage.setItem(storageKey, editor.value);
+                    });
+
+                    const form = editor.closest("form");
+                    if (form) {
+                        form.addEventListener("submit", () => {
+                            localStorage.setItem(storageKey, editor.value);
+                        });
+                    }
+                }
 
                 tabs.forEach((tab) => {
                     tab.addEventListener("click", () => {

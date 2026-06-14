@@ -7,4 +7,7 @@ public sealed record DiagnosticInfo(
     SourceLocation? Location,
     string Message,
     string LineText,
-    string Caret);
+    string Caret,
+    string? MethodName,
+    string? InternalFile,
+    int? InternalLine);

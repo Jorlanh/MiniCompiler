@@ -152,9 +152,26 @@ internal static class Program
                     success++;
                     Console.WriteLine("Compilacao Python concluida.");
                     Console.WriteLine($"Python: {pythonResult.PythonVersion}");
+                    Console.WriteLine($"Tokens: {pythonResult.TokenCount}");
+                    Console.WriteLine($"Instrucoes TAC: {pythonResult.IntermediateLineCount}");
+                    Console.WriteLine($"Instrucoes bytecode: {pythonResult.BytecodeInstructionCount}");
+                    Console.WriteLine($"Variaveis: {pythonResult.VariableCount}");
                     Console.WriteLine($"Linhas: {pythonResult.LineCount}");
-                    Console.WriteLine($"Nos AST: {pythonResult.AstNodeCount}");
-                    Console.WriteLine($"Instrucoes bytecode Python: {pythonResult.BytecodeInstructionCount}");
+                    Console.WriteLine($"Nos AST Python: {pythonResult.AstNodeCount}");
+
+                    if (showTac)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine("TAC / IR Python:");
+                        Console.WriteLine(pythonResult.IntermediateCode);
+                    }
+
+                    if (showBytecode)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine("Bytecode Python:");
+                        Console.WriteLine(pythonResult.BytecodeText);
+                    }
 
                     if (run)
                     {

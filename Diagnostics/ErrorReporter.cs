@@ -44,6 +44,17 @@ public static class ErrorReporter
             builder.AppendLine($"Detalhe tecnico: {error.InnerException.GetType().Name}");
         }
 
+        if (!string.IsNullOrWhiteSpace(diagnostic.MethodName))
+        {
+            builder.AppendLine($"Metodo interno: {diagnostic.MethodName}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(diagnostic.InternalFile))
+        {
+            var line = diagnostic.InternalLine is null ? string.Empty : $":{diagnostic.InternalLine}";
+            builder.AppendLine($"Arquivo interno: {diagnostic.InternalFile}{line}");
+        }
+
         return builder.ToString();
     }
 
@@ -69,7 +80,10 @@ public static class ErrorReporter
             error.Location,
             error.Message,
             lineText,
-            caret);
+            caret,
+            error.MethodName,
+            error.InternalFile,
+            error.InternalLine);
     }
 
     public static string GetLine(string sourceText, int lineNumber)
