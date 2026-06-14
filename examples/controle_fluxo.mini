@@ -1,0 +1,8 @@
+int idade = 18;
+bool maior = idade >= 18;
+
+if (maior) {
+    print(1);
+} else {
+    print(0);
+}

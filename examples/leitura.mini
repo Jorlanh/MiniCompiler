@@ -1,0 +1,3 @@
+int valor;
+read(valor);
+print(valor + 10);
