@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using MiniCompiler.Compilation;
 using MiniCompiler.Diagnostics;
 
 namespace MiniCompiler.Python;
@@ -205,6 +206,35 @@ public sealed class PythonCompilerService
         }
     }
 
+    public PythonCompilationOutcome CompileWithRecovery(string sourceName, string sourceText)
+    {
+        try
+        {
+            return new PythonCompilationOutcome(
+                Compile(sourceName, sourceText),
+                sourceText,
+                sourceText,
+                Array.Empty<SourceCorrection>(),
+                null);
+        }
+        catch (CompilerException exception) when (CanRepairMissingColon(exception))
+        {
+            var repair = PythonAutoCorrector.RepairMissingColons(sourceName, sourceText);
+
+            if (!repair.HasCorrections)
+            {
+                throw;
+            }
+
+            return new PythonCompilationOutcome(
+                Compile(sourceName, repair.SourceText),
+                repair.SourceText,
+                sourceText,
+                repair.Corrections,
+                exception);
+        }
+    }
+
     private static PythonCompileResult ParseResult(string sourceName, string sourceText, string output)
     {
         using var document = JsonDocument.Parse(output);
@@ -255,5 +285,11 @@ public sealed class PythonCompilerService
         {
             // Arquivo temporario: se ficar bloqueado, o sistema limpa depois.
         }
+    }
+
+    private static bool CanRepairMissingColon(CompilerException exception)
+    {
+        return exception.Stage.Equals("Python", StringComparison.OrdinalIgnoreCase)
+            && exception.Message.Contains("expected ':'", StringComparison.OrdinalIgnoreCase);
     }
 }

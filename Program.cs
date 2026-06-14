@@ -148,9 +148,17 @@ internal static class Program
             {
                 if (SourceLanguageDetector.IsPython(source.Name, source.Text))
                 {
-                    var pythonResult = pythonCompiler.Compile(source.Name, source.Text);
+                    var pythonOutcome = pythonCompiler.CompileWithRecovery(source.Name, source.Text);
+                    var pythonResult = pythonOutcome.Result;
                     success++;
                     Console.WriteLine("Compilacao Python concluida.");
+
+                    if (pythonOutcome.WasRepaired && pythonOutcome.OriginalError is not null)
+                    {
+                        Console.WriteLine($"Erro original: {pythonOutcome.OriginalError.Message}");
+                        PrintCorrections(pythonOutcome.Corrections);
+                    }
+
                     Console.WriteLine($"Python: {pythonResult.PythonVersion}");
                     Console.WriteLine($"Tokens: {pythonResult.TokenCount}");
                     Console.WriteLine($"Instrucoes TAC: {pythonResult.IntermediateLineCount}");

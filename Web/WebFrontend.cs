@@ -145,9 +145,9 @@ public static class WebFrontend
             {
                 if (SourceLanguageDetector.IsPython(source.Name, source.Text))
                 {
-                    var pythonResult = pythonCompiler.Compile(source.Name, source.Text);
+                    var pythonOutcome = pythonCompiler.CompileWithRecovery(source.Name, source.Text);
                     success++;
-                    builder.AppendLine(RenderPythonSuccess(source.Name, pythonResult));
+                    builder.AppendLine(RenderPythonSuccess(source.Name, pythonOutcome));
                     continue;
                 }
 
@@ -196,9 +196,10 @@ public static class WebFrontend
         return builder.ToString();
     }
 
-    private static string RenderPythonSuccess(string sourceName, PythonCompileResult result)
+    private static string RenderPythonSuccess(string sourceName, PythonCompilationOutcome outcome)
     {
         var builder = new StringBuilder();
+        var result = outcome.Result;
 
         builder.AppendLine("<article class=\"result ok\">");
         builder.AppendLine("<div class=\"result-heading\">");
@@ -208,6 +209,12 @@ public static class WebFrontend
         builder.AppendLine("</div>");
         builder.AppendLine("<strong>Python</strong>");
         builder.AppendLine("</div>");
+
+        if (outcome.WasRepaired && outcome.OriginalError is not null)
+        {
+            builder.AppendLine(RenderRecoveredError(outcome.OriginalError, outcome.OriginalSourceText, outcome.Corrections, outcome.OriginalError.SourceName));
+        }
+
         builder.AppendLine($"<p class=\"message\">Codigo Python compilado com sucesso pelo backend CPython {Escape(result.PythonVersion)}.</p>");
         builder.AppendLine("<div class=\"metrics\">");
         builder.AppendLine(Metric("Tokens", result.TokenCount));
@@ -222,6 +229,42 @@ public static class WebFrontend
         builder.AppendLine($"<pre>{Escape(result.BytecodeText)}</pre>");
         builder.AppendLine("</details>");
         builder.AppendLine("</article>");
+
+        return builder.ToString();
+    }
+
+    private static string RenderRecoveredError(
+        CompilerException originalError,
+        string originalSourceText,
+        IReadOnlyList<SourceCorrection> corrections,
+        string sourceName)
+    {
+        var diagnostic = ErrorReporter.BuildDiagnostic(originalError, originalSourceText);
+        var position = diagnostic.Location is { } location
+            ? $"linha {location.Line}, coluna {location.Column}"
+            : "entrada do projeto";
+        var snippet = !string.IsNullOrWhiteSpace(diagnostic.LineText)
+            ? $"""
+                <div class="snippet" aria-label="Trecho original com erro">
+                    <code>{Escape(diagnostic.LineText)}</code>
+                    <code class="caret">{Escape(diagnostic.Caret)}</code>
+                </div>
+              """
+            : string.Empty;
+
+        var builder = new StringBuilder();
+
+        builder.AppendLine("<div class=\"recovered-error\">");
+        builder.AppendLine("<div class=\"recovered-title\">Erro encontrado e corrigido</div>");
+        builder.AppendLine($"<p>{Escape(diagnostic.Message)}</p>");
+        builder.AppendLine("<div class=\"diagnostic-grid\">");
+        builder.AppendLine($"<div><span>Arquivo</span><strong>{Escape(sourceName)}</strong></div>");
+        builder.AppendLine($"<div><span>Classe</span><strong>{Escape(diagnostic.ClassName)}</strong></div>");
+        builder.AppendLine($"<div><span>Posicao</span><strong>{Escape(position)}</strong></div>");
+        builder.AppendLine("</div>");
+        builder.AppendLine(snippet);
+        builder.AppendLine(RenderCorrections(corrections));
+        builder.AppendLine("</div>");
 
         return builder.ToString();
     }
@@ -722,6 +765,30 @@ public static class WebFrontend
                     border-radius: 8px;
                     padding: 12px;
                     background: #f3fbf6;
+                }
+
+                .recovered-error {
+                    margin-bottom: 12px;
+                    padding: 12px;
+                    border: 1px solid #f1d391;
+                    border-left: 4px solid #ad7600;
+                    border-radius: 8px;
+                    background: #fff9eb;
+                }
+
+                .recovered-title {
+                    margin-bottom: 8px;
+                    color: #855a00;
+                    font-weight: 700;
+                }
+
+                .recovered-error p {
+                    margin: 0 0 10px;
+                    font-weight: 700;
+                }
+
+                .recovered-error .corrections {
+                    margin-bottom: 0;
                 }
 
                 .corrections-title {
