@@ -55,12 +55,6 @@ Depois acesse:
 http://localhost:5055
 ```
 
-A tela tem tres abas:
-
-- `Codigo`: cola o codigo fonte e compila.
-- `GitHub`: recebe o link do repositorio, clona com `git clone` e analisa os arquivos encontrados.
-- `ZIP`: recebe um arquivo `.zip`, extrai em pasta temporaria e compila os codigos dentro dele.
-
 Tambem da para trocar a porta:
 
 ```bash
