@@ -7,6 +7,11 @@ public enum TokenType
     Number,
 
     // Suporte Python/Mini
+    String,
+    For,
+    In,
+    Range,
+    StarEqual,
     Indent,
     Dedent,
     Newline,

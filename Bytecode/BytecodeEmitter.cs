@@ -74,7 +74,7 @@ public sealed class BytecodeEmitter : IStatementVisitor<object?>, IExpressionVis
     public object? VisitPrint(PrintStatement statement)
     {
         statement.Value.Accept(this);
-        Emit(OpCode.Print, null, statement.Location);
+        Emit(statement.NewLine ? OpCode.Print : OpCode.PrintInline, null, statement.Location);
         return null;
     }
 
@@ -138,6 +138,9 @@ public sealed class BytecodeEmitter : IStatementVisitor<object?>, IExpressionVis
                 break;
             case bool value:
                 Emit(OpCode.PushBool, value, expression.Location);
+                break;
+            case string value:
+                Emit(OpCode.PushString, value, expression.Location);
                 break;
             default:
                 throw new CompilerException(

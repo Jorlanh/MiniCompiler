@@ -10,18 +10,21 @@ public sealed class Lexer
         ["bool"] = TokenType.Bool,
         ["if"] = TokenType.If,
         ["else"] = TokenType.Else,
-        ["elif"] = TokenType.Else, // Tolerancia Python
+        ["elif"] = TokenType.Else, 
         ["while"] = TokenType.While,
+        ["for"] = TokenType.For,
+        ["in"] = TokenType.In,
+        ["range"] = TokenType.Range,
         ["print"] = TokenType.Print,
         ["read"] = TokenType.Read,
         ["true"] = TokenType.True,
         ["false"] = TokenType.False,
-        ["True"] = TokenType.True,   // Tolerancia Python
-        ["False"] = TokenType.False, // Tolerancia Python
-        ["def"] = TokenType.Def,     // Tolerancia Python
-        ["and"] = TokenType.AndAnd,  // Tolerancia Python
-        ["or"] = TokenType.OrOr,     // Tolerancia Python
-        ["not"] = TokenType.Bang     // Tolerancia Python
+        ["True"] = TokenType.True,   
+        ["False"] = TokenType.False, 
+        ["def"] = TokenType.Def,     
+        ["and"] = TokenType.AndAnd,  
+        ["or"] = TokenType.OrOr,     
+        ["not"] = TokenType.Bang     
     };
 
     private readonly string _sourceName;
@@ -41,7 +44,7 @@ public sealed class Lexer
     {
         _sourceName = sourceName;
         _source = source;
-        _indentations.Push(0); // Nivel base de indentacao
+        _indentations.Push(0); 
     }
 
     public IReadOnlyList<Token> ScanTokens()
@@ -65,7 +68,7 @@ public sealed class Lexer
 
                     if (IsAtEnd() || Peek() == '\n' || Peek() == '\r' || Peek() == '#' || (Peek() == '/' && PeekNext() == '/'))
                     {
-                        // Linha vazia ou comentario, ignorar indentacao
+                        // Ignore
                     }
                     else
                     {
@@ -109,18 +112,10 @@ public sealed class Lexer
 
             return _tokens;
         }
-        catch (CompilerException)
-        {
-            throw;
-        }
+        catch (CompilerException) { throw; }
         catch (Exception exception)
         {
-            throw CompilerException.Unexpected(
-                "Lexico",
-                _sourceName,
-                nameof(Lexer),
-                new SourceLocation(_startLine, _startColumn, _start),
-                exception);
+            throw CompilerException.Unexpected("Lexico", _sourceName, nameof(Lexer), new SourceLocation(_startLine, _startColumn, _start), exception);
         }
     }
 
@@ -138,9 +133,9 @@ public sealed class Lexer
             case ',': AddToken(TokenType.Comma); break;
             case '+': AddToken(TokenType.Plus); break;
             case '-': AddToken(TokenType.Minus); break;
-            case '*': AddToken(TokenType.Star); break;
+            case '*': AddToken(Match('=') ? TokenType.StarEqual : TokenType.Star); break;
             case '%': AddToken(TokenType.Percent); break;
-            case ':': AddToken(TokenType.Colon); break; // Python block start
+            case ':': AddToken(TokenType.Colon); break; 
             case '!': AddToken(Match('=') ? TokenType.BangEqual : TokenType.Bang); break;
             case '=': AddToken(Match('=') ? TokenType.EqualEqual : TokenType.Equal); break;
             case '<': AddToken(Match('=') ? TokenType.LessEqual : TokenType.Less); break;
@@ -151,8 +146,22 @@ public sealed class Lexer
             case '|':
                 if (Match('|')) { AddToken(TokenType.OrOr); break; }
                 Fail("Use || para operador logico OU."); break;
-            case '#': // Comentario Python
+            case '#': 
                 while (Peek() != '\n' && !IsAtEnd()) Advance();
+                break;
+            case '"':
+                StringLiteral(false);
+                break;
+            case 'f':
+                if (Peek() == '"')
+                {
+                    Advance();
+                    StringLiteral(true);
+                }
+                else
+                {
+                    Identifier();
+                }
                 break;
             case '/':
                 if (Match('/'))
@@ -177,13 +186,27 @@ public sealed class Lexer
             case '\r':
             case ' ':
             case '\t':
-                break; // Espacos inline ja foram processados, ignorar
+                break; 
             default:
                 if (char.IsDigit(character)) Number();
                 else if (IsIdentifierStart(character)) Identifier();
                 else Fail($"Caractere inesperado '{character}'.");
                 break;
         }
+    }
+
+    private void StringLiteral(bool isFString)
+    {
+        while (Peek() != '"' && !IsAtEnd()) Advance();
+        
+        if (IsAtEnd()) Fail("String nao fechada.");
+        Advance(); 
+
+        var value = _source[_start.._current];
+        value = isFString ? value.Substring(2, value.Length - 3) : value.Substring(1, value.Length - 2);
+        value = value.Replace("\\n", "\n");
+        
+        AddToken(TokenType.String, value);
     }
 
     private void Identifier()
@@ -215,10 +238,7 @@ public sealed class Lexer
     {
         while (!IsAtEnd())
         {
-            if (Peek() == '*' && PeekNext() == '/')
-            {
-                Advance(); Advance(); return;
-            }
+            if (Peek() == '*' && PeekNext() == '/') { Advance(); Advance(); return; }
             Advance();
         }
         Fail("Comentario de bloco nao foi fechado.");
@@ -248,10 +268,7 @@ public sealed class Lexer
         _tokens.Add(new Token(type, text, literal, new SourceLocation(_startLine, _startColumn, _start)));
     }
 
-    private void Fail(string message)
-    {
-        throw new CompilerException("Lexico", _sourceName, nameof(Lexer), new SourceLocation(_startLine, _startColumn, _start), message);
-    }
+    private void Fail(string message) => throw new CompilerException("Lexico", _sourceName, nameof(Lexer), new SourceLocation(_startLine, _startColumn, _start), message);
 
     private static bool IsIdentifierStart(char character) => char.IsLetter(character) || character == '_';
     private static bool IsIdentifierPart(char character) => char.IsLetterOrDigit(character) || character == '_';

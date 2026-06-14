@@ -51,22 +51,23 @@ public static class WebFrontend
 
     private static async Task<IResult> AnalyzeCode(HttpContext context)
     {
+        string code = string.Empty;
         try
         {
             var form = await context.Request.ReadFormAsync();
-            var code = form["source"].ToString();
+            code = form["source"].ToString();
 
             if (string.IsNullOrWhiteSpace(code))
             {
-                return Html(RenderPage(RenderError("Codigo", "Informe um codigo para compilar."), "codigo"));
+                return Html(RenderPage(RenderError("Codigo", "Informe um codigo para compilar."), "codigo", code));
             }
 
             var sources = new[] { ProjectLoader.FromText(code) };
-            return Html(RenderPage(BuildReport(sources), "codigo"));
+            return Html(RenderPage(BuildReport(sources), "codigo", code));
         }
         catch (Exception exception)
         {
-            return Html(RenderPage(RenderException(exception, "Codigo", string.Empty), "codigo"));
+            return Html(RenderPage(RenderException(exception, "Codigo", string.Empty), "codigo", code));
         }
     }
 
@@ -270,12 +271,13 @@ public static class WebFrontend
         """;
     }
 
-    private static string RenderPage(string resultHtml = "", string activeTab = "codigo")
+    private static string RenderPage(string resultHtml = "", string activeTab = "codigo", string? currentSource = null)
     {
         var codeActive = activeTab == "codigo" ? "active" : "";
         var githubActive = activeTab == "github" ? "active" : "";
         var zipActive = activeTab == "zip" ? "active" : "";
-        var sampleCode = Escape("""
+        
+        var sampleCode = """
             int n = 5;
             int fat = 1;
 
@@ -285,7 +287,9 @@ public static class WebFrontend
             }
 
             print(fat);
-            """);
+            """;
+            
+        var displayCode = Escape(currentSource ?? sampleCode);
 
         return $$"""
         <!doctype html>
@@ -428,7 +432,7 @@ public static class WebFrontend
                 }
 
                 textarea {
-                    min-height: 280px;
+                    min-height: 500px;
                     resize: vertical;
                     padding: 12px;
                     line-height: 1.45;
@@ -719,7 +723,7 @@ public static class WebFrontend
 
                         <form class="pane {{codeActive}}" data-pane="codigo" method="post" action="/analisar/codigo">
                             <label for="source">Codigo fonte</label>
-                            <textarea id="source" name="source" spellcheck="false">{{sampleCode}}</textarea>
+                            <textarea id="source" name="source" spellcheck="false">{{displayCode}}</textarea>
                             <div class="actions">
                                 <button type="submit">Compilar codigo</button>
                             </div>

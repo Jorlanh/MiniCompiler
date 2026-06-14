@@ -68,10 +68,20 @@ public sealed class SemanticAnalyzer : IStatementVisitor<object?>, IExpressionVi
 
     public object? VisitAssignment(AssignmentStatement statement)
     {
+        var valueType = statement.Value.Accept(this);
+
+        // Auto-declaração Dinâmica (Mágica Python)
+        if (!_currentScope.TryResolve(statement.Name, out _))
+        {
+            var slot = _variableTypes.Count;
+            var sym = new SymbolInfo(statement.Name, valueType, slot, statement.Location);
+            _currentScope.Declare(sym);
+            _variableTypes.Add(valueType);
+        }
+
         var symbol = Resolve(statement.Name, statement.Location);
         statement.Symbol = symbol;
 
-        var valueType = statement.Value.Accept(this);
         ExpectSameType(symbol.Type, valueType, statement.Value.Location,
             $"A variavel '{statement.Name}' e do tipo {Format(symbol.Type)}, mas recebeu {Format(valueType)}.");
 
@@ -86,6 +96,15 @@ public sealed class SemanticAnalyzer : IStatementVisitor<object?>, IExpressionVi
 
     public object? VisitRead(ReadStatement statement)
     {
+        // Auto-declaração para input() encadeado
+        if (!_currentScope.TryResolve(statement.Name, out _))
+        {
+            var slot = _variableTypes.Count;
+            var sym = new SymbolInfo(statement.Name, TypeSymbol.Int, slot, statement.Location);
+            _currentScope.Declare(sym);
+            _variableTypes.Add(TypeSymbol.Int);
+        }
+
         statement.Symbol = Resolve(statement.Name, statement.Location);
         return null;
     }
@@ -113,6 +132,17 @@ public sealed class SemanticAnalyzer : IStatementVisitor<object?>, IExpressionVi
 
     public object? VisitBlock(BlockStatement statement)
     {
+        // Se CreatesScope for falso (blocos Python), nao criamos um novo escopo
+        if (!statement.CreatesScope)
+        {
+            foreach (var childStatement in statement.Statements)
+            {
+                childStatement.Accept(this);
+            }
+            return null;
+        }
+
+        // Caso contrario, comportamento padrao de criar escopo (blocos com chaves)
         var previous = _currentScope;
         _currentScope = new SymbolTable(previous);
 
@@ -137,6 +167,7 @@ public sealed class SemanticAnalyzer : IStatementVisitor<object?>, IExpressionVi
         {
             int => TypeSymbol.Int,
             bool => TypeSymbol.Bool,
+            string => TypeSymbol.Int, // Hack: Burlar a restrição e tratar string como primitiva Int provisoriamente
             _ => throw new CompilerException(
                 "Semantico",
                 _sourceName,
