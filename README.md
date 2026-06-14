@@ -91,18 +91,6 @@ Nesse caso, o backend chama o Python instalado na maquina, valida a sintaxe com 
 
 Esse modo nao executa `input()` automaticamente. Ele valida/compila o Python para evitar travar a interface durante a apresentacao.
 
-## Fallback e painel global
-
-O projeto tem tres camadas de protecao:
-
-- `Program.cs`: captura erros no modo terminal.
-- `WebFrontend.cs`: captura erros globais da interface web e mostra painel amigavel.
-- fases internas: lexer, parser, semantica, TAC, bytecode, VM e Python transformam falhas inesperadas em `CompilerException`.
-
-Quando o erro e do codigo analisado, o painel mostra arquivo, linha, coluna e trecho. Quando o erro e interno do compilador, o painel tambem tenta mostrar classe, metodo, arquivo `.cs` e linha interna.
-
-O editor da aba `Codigo` usa `localStorage`, entao o texto digitado continua na tela depois de clicar em compilar.
-
 ## Exemplo da linguagem
 
 ```c
