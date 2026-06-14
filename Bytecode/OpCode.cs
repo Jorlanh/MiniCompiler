@@ -1,10 +1,9 @@
 namespace MiniCompiler.Bytecode;
 
-public enum OpCode
+public enum OpCode : byte
 {
     PushInt,
     PushBool,
-    PushString,
     LoadVar,
     StoreVar,
     Add,
@@ -25,7 +24,6 @@ public enum OpCode
     Jump,
     JumpFalse,
     Print,
-    PrintInline,
     ReadInt,
     ReadBool,
     Halt

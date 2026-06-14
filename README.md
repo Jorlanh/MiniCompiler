@@ -19,6 +19,7 @@ Compilador didatico feito em C#/.NET. Ele implementa uma linguagem pequena com:
 - diagnostico de erro com etapa, classe, linha e coluna
 - frontend web local com entrada por codigo, GitHub e ZIP
 - auto-correcao simples para `;` e `}` faltando
+- validacao/compilacao de Python puro usando CPython como backend
 
 ## Como rodar
 
@@ -35,6 +36,7 @@ dotnet run -- --dir examples
 dotnet run -- --zip caminho/projeto.zip
 dotnet run -- --github https://github.com/usuario/repositorio
 dotnet run -- --source "int x = 2; print(x);" --run
+dotnet run -- --source "try:\n    print('ok')\nexcept Exception:\n    print('erro')"
 ```
 
 Se abrir sem argumentos, o programa mostra um menu simples para escolher arquivo, pasta, ZIP, GitHub ou codigo colado no terminal.
@@ -73,11 +75,21 @@ Ao analisar pasta, ZIP ou repositorio, ele procura arquivos:
 - `.mc`
 - `.mcomp`
 - `.txt`
-- `.java`
 - `.py`
-- `.js`
-- `.ts`
-- `.cs`
+
+## Python puro
+
+O MiniCompiler tambem aceita codigo Python puro. Quando o arquivo tem extensao `.py` ou quando o codigo colado parece Python (`try:`, `except`, `for ...:`, `input(...)`, `range(...)`, `f-string`, etc.), ele nao tenta passar pelo parser didatico.
+
+Nesse caso, o backend chama o Python instalado na maquina, valida a sintaxe com `ast.parse`, compila com `compile(...)` e devolve para o frontend:
+
+- versao do Python
+- quantidade de linhas
+- quantidade de nos da AST
+- quantidade de instrucoes de bytecode Python no bloco principal
+- erro de sintaxe com linha, coluna e trecho marcado, quando houver
+
+Esse modo nao executa `input()` automaticamente. Ele valida/compila o Python para evitar travar a interface durante a apresentacao.
 
 ## Exemplo da linguagem
 
@@ -139,15 +151,3 @@ Quando alguma correcao acontece, a tela mostra a linha, a coluna e a alteracao f
 ## Observacoes
 
 O bytecode nao mira Assembly x86. Ele roda em uma VM de pilha propria para manter o projeto menor e mais facil de acompanhar. O TAC existe como uma camada intermediaria visivel com `--show-tac`.
-
-## Integrantes
-
-Andressa Galvão,
-Deivide Sobral,
-Jorlan Heider.
-
----
-
-## Status do Projeto
-
-Concluído e operacional

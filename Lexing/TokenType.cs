@@ -6,18 +6,6 @@ public enum TokenType
     Identifier,
     Number,
 
-    // Suporte Python/Mini
-    String,
-    For,
-    In,
-    Range,
-    StarEqual,
-    Indent,
-    Dedent,
-    Newline,
-    Colon,
-    Def,
-
     Int,
     Bool,
     If,

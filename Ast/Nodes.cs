@@ -47,7 +47,7 @@ public sealed record AssignmentStatement(
     }
 }
 
-public sealed record PrintStatement(Expression Value, bool NewLine, SourceLocation Location) : Statement(Location)
+public sealed record PrintStatement(Expression Value, SourceLocation Location) : Statement(Location)
 {
     public override T Accept<T>(IStatementVisitor<T> visitor)
     {
@@ -88,7 +88,7 @@ public sealed record WhileStatement(
     }
 }
 
-public sealed record BlockStatement(IReadOnlyList<Statement> Statements, bool CreatesScope, SourceLocation Location) : Statement(Location)
+public sealed record BlockStatement(IReadOnlyList<Statement> Statements, SourceLocation Location) : Statement(Location)
 {
     public override T Accept<T>(IStatementVisitor<T> visitor)
     {

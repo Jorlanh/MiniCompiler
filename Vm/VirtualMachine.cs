@@ -11,9 +11,8 @@ public sealed class VirtualMachine
     private readonly TextReader _input;
     private readonly TextWriter _output;
     private readonly Stack<object> _stack = new();
+    private readonly object[] _memory;
     private int _pc;
-
-    private static readonly Dictionary<string, object> _globalMemory = new(StringComparer.Ordinal);
 
     public VirtualMachine(string sourceName, BytecodeProgram program, TextReader input, TextWriter output)
     {
@@ -21,6 +20,7 @@ public sealed class VirtualMachine
         _program = program;
         _input = input;
         _output = output;
+        _memory = program.VariableTypes.Select(DefaultValue).ToArray();
     }
 
     public void Run()
@@ -40,21 +40,11 @@ public sealed class VirtualMachine
                     case OpCode.PushBool:
                         _stack.Push((bool)instruction.Operand!);
                         break;
-                    case OpCode.PushString:
-                        _stack.Push((string)instruction.Operand!);
-                        break;
                     case OpCode.LoadVar:
-                        var loadName = (string)instruction.Operand!;
-                        if (!_globalMemory.TryGetValue(loadName, out var storedValue) || storedValue is null)
-                        {
-                            RuntimeFail(instruction, $"A variavel '{loadName}' nao foi inicializada na memoria global.");
-                            return;
-                        }
-                        _stack.Push(storedValue);
+                        _stack.Push(_memory[(int)instruction.Operand!]);
                         break;
                     case OpCode.StoreVar:
-                        var storeName = (string)instruction.Operand!;
-                        _globalMemory[storeName] = Pop(instruction);
+                        _memory[(int)instruction.Operand!] = Pop(instruction);
                         break;
                     case OpCode.Add:
                         BinaryInt(instruction, (a, b) => a + b);
@@ -68,14 +58,22 @@ public sealed class VirtualMachine
                     case OpCode.Div:
                         BinaryInt(instruction, (a, b) =>
                         {
-                            if (b == 0) RuntimeFail(instruction, "Divisao por zero.");
+                            if (b == 0)
+                            {
+                                RuntimeFail(instruction, "Divisao por zero.");
+                            }
+
                             return a / b;
                         });
                         break;
                     case OpCode.Mod:
                         BinaryInt(instruction, (a, b) =>
                         {
-                            if (b == 0) RuntimeFail(instruction, "Modulo por zero.");
+                            if (b == 0)
+                            {
+                                RuntimeFail(instruction, "Modulo por zero.");
+                            }
+
                             return a % b;
                         });
                         break;
@@ -120,10 +118,7 @@ public sealed class VirtualMachine
                         }
                         break;
                     case OpCode.Print:
-                        PrintValue(Pop(instruction), true);
-                        break;
-                    case OpCode.PrintInline:
-                        PrintValue(Pop(instruction), false);
+                        PrintValue(Pop(instruction));
                         break;
                     case OpCode.ReadInt:
                         _stack.Push(ReadInt(instruction));
@@ -163,7 +158,6 @@ public sealed class VirtualMachine
         if (_stack.Count == 0)
         {
             RuntimeFail(instruction, "A pilha da VM esta vazia.");
-            throw new InvalidOperationException();
         }
 
         return _stack.Pop();
@@ -223,6 +217,7 @@ public sealed class VirtualMachine
 
     private int ReadInt(Instruction instruction)
     {
+        _output.Write("int> ");
         var text = _input.ReadLine();
 
         if (!int.TryParse(text, out var value))
@@ -235,6 +230,7 @@ public sealed class VirtualMachine
 
     private bool ReadBool(Instruction instruction)
     {
+        _output.Write("bool> ");
         var text = _input.ReadLine()?.Trim().ToLowerInvariant();
 
         return text switch
@@ -250,21 +246,9 @@ public sealed class VirtualMachine
         };
     }
 
-    private void PrintValue(object value, bool newLine)
+    private void PrintValue(object value)
     {
-        string text = value is bool b ? b.ToString().ToLowerInvariant() : value.ToString()!;
-        
-        if (value is string str && str.Contains("{"))
-        {
-            text = System.Text.RegularExpressions.Regex.Replace(str, @"\{(\w+)\}", m => 
-            {
-                if (_globalMemory.TryGetValue(m.Groups[1].Value, out var val) && val is not null) return val.ToString()!;
-                return m.Value;
-            });
-        }
-        
-        if (newLine) _output.WriteLine(text);
-        else _output.Write(text);
+        _output.WriteLine(value is bool boolValue ? boolValue.ToString().ToLowerInvariant() : value);
     }
 
     private void RuntimeFail(Instruction instruction, string message)
@@ -275,5 +259,10 @@ public sealed class VirtualMachine
             nameof(VirtualMachine),
             instruction.Location,
             message);
+    }
+
+    private static object DefaultValue(TypeSymbol type)
+    {
+        return type == TypeSymbol.Int ? 0 : false;
     }
 }

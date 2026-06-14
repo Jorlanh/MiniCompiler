@@ -2,6 +2,7 @@ using MiniCompiler.Bytecode;
 using MiniCompiler.Compilation;
 using MiniCompiler.Diagnostics;
 using MiniCompiler.Input;
+using MiniCompiler.Python;
 using MiniCompiler.Vm;
 
 namespace MiniCompiler;
@@ -47,26 +48,16 @@ internal static class Program
     }
 
     private static int RunInteractive()
-{
-    while (true)
     {
-        Console.WriteLine();
         Console.WriteLine("MiniCompiler - compilador didatico em C#");
         Console.WriteLine("1 - Analisar arquivo");
         Console.WriteLine("2 - Analisar pasta");
         Console.WriteLine("3 - Analisar ZIP");
         Console.WriteLine("4 - Clonar repositorio GitHub e analisar");
         Console.WriteLine("5 - Colar codigo no terminal");
-        Console.WriteLine("6 - Encerrar Compilador (Zerar Memoria)");
         Console.Write("Opcao: ");
 
         var option = Console.ReadLine()?.Trim();
-        
-        if (option == "6")
-        {
-            break;
-        }
-
         IReadOnlyList<SourceFile> sources;
 
         switch (option)
@@ -92,7 +83,7 @@ internal static class Program
                 break;
             default:
                 Console.WriteLine("Opcao invalida.");
-                continue;
+                return 1;
         }
 
         Console.Write("Mostrar TAC? (s/n): ");
@@ -102,11 +93,8 @@ internal static class Program
         Console.Write("Executar depois de compilar? (s/n): ");
         var run = IsYes(Console.ReadLine());
 
-        CompileMany(sources, run, showTac, showBytecode);
+        return CompileMany(sources, run, showTac, showBytecode);
     }
-
-    return 0;
-}
 
     private static IReadOnlyList<SourceFile> LoadSourcesFromOptions(Dictionary<string, string?> options)
     {
@@ -146,6 +134,7 @@ internal static class Program
     private static int CompileMany(IReadOnlyList<SourceFile> sources, bool run, bool showTac, bool showBytecode)
     {
         var compiler = new MiniCompilerPipeline();
+        var pythonCompiler = new PythonCompilerService();
         var success = 0;
         var failed = 0;
 
@@ -153,10 +142,29 @@ internal static class Program
         {
             Console.WriteLine();
             Console.WriteLine($"== {source.Name} ==");
-            var repair = SourceAutoCorrector.Repair(source.Name, source.Text);
+            SourceRepairResult? repair = null;
 
             try
             {
+                if (SourceLanguageDetector.IsPython(source.Name, source.Text))
+                {
+                    var pythonResult = pythonCompiler.Compile(source.Name, source.Text);
+                    success++;
+                    Console.WriteLine("Compilacao Python concluida.");
+                    Console.WriteLine($"Python: {pythonResult.PythonVersion}");
+                    Console.WriteLine($"Linhas: {pythonResult.LineCount}");
+                    Console.WriteLine($"Nos AST: {pythonResult.AstNodeCount}");
+                    Console.WriteLine($"Instrucoes bytecode Python: {pythonResult.BytecodeInstructionCount}");
+
+                    if (run)
+                    {
+                        Console.WriteLine("Execucao Python nao foi iniciada pelo MiniCompiler. O modo Python valida/compila o codigo sem executar input().");
+                    }
+
+                    continue;
+                }
+
+                repair = SourceAutoCorrector.Repair(source.Name, source.Text);
                 var result = compiler.Compile(source.Name, repair.SourceText);
                 success++;
 
@@ -192,12 +200,12 @@ internal static class Program
             catch (Exception exception)
             {
                 failed++;
-                if (repair.HasCorrections)
+                if (repair?.HasCorrections == true)
                 {
                     PrintCorrections(repair.Corrections);
                 }
 
-                ErrorReporter.Print(exception, source.Name, repair.SourceText, Console.Error);
+                ErrorReporter.Print(exception, source.Name, repair?.SourceText ?? source.Text, Console.Error);
             }
         }
 

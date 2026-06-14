@@ -12,11 +12,7 @@ public static class ProjectLoader
         ".mc",
         ".mcomp",
         ".txt",
-        ".java",
-        ".py",
-        ".js",
-        ".ts",
-        ".cs"
+        ".py"
     };
 
     public static SourceFile FromText(string sourceText)
@@ -139,7 +135,7 @@ public static class ProjectLoader
 
         if (files.Count == 0)
         {
-            Fail(sourceName, "Nenhum arquivo de codigo foi encontrado. Extensoes aceitas: .mini, .mc, .mcomp e .txt.");
+            Fail(sourceName, "Nenhum arquivo de codigo foi encontrado. Extensoes aceitas: .mini, .mc, .mcomp, .txt e .py.");
         }
 
         return files;

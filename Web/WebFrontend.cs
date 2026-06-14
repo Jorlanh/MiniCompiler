@@ -4,6 +4,7 @@ using MiniCompiler.Bytecode;
 using MiniCompiler.Compilation;
 using MiniCompiler.Diagnostics;
 using MiniCompiler.Input;
+using MiniCompiler.Python;
 
 namespace MiniCompiler.Web;
 
@@ -51,23 +52,22 @@ public static class WebFrontend
 
     private static async Task<IResult> AnalyzeCode(HttpContext context)
     {
-        string code = string.Empty;
         try
         {
             var form = await context.Request.ReadFormAsync();
-            code = form["source"].ToString();
+            var code = form["source"].ToString();
 
             if (string.IsNullOrWhiteSpace(code))
             {
-                return Html(RenderPage(RenderError("Codigo", "Informe um codigo para compilar."), "codigo", code));
+                return Html(RenderPage(RenderError("Codigo", "Informe um codigo para compilar."), "codigo"));
             }
 
             var sources = new[] { ProjectLoader.FromText(code) };
-            return Html(RenderPage(BuildReport(sources), "codigo", code));
+            return Html(RenderPage(BuildReport(sources), "codigo"));
         }
         catch (Exception exception)
         {
-            return Html(RenderPage(RenderException(exception, "Codigo", string.Empty), "codigo", code));
+            return Html(RenderPage(RenderException(exception, "Codigo", string.Empty), "codigo"));
         }
     }
 
@@ -128,6 +128,7 @@ public static class WebFrontend
     private static string BuildReport(IReadOnlyList<SourceFile> sources)
     {
         var compiler = new MiniCompilerPipeline();
+        var pythonCompiler = new PythonCompilerService();
         var builder = new StringBuilder();
         var success = 0;
         var failed = 0;
@@ -136,10 +137,19 @@ public static class WebFrontend
 
         foreach (var source in sources)
         {
-            var repair = SourceAutoCorrector.Repair(source.Name, source.Text);
+            SourceRepairResult? repair = null;
 
             try
             {
+                if (SourceLanguageDetector.IsPython(source.Name, source.Text))
+                {
+                    var pythonResult = pythonCompiler.Compile(source.Name, source.Text);
+                    success++;
+                    builder.AppendLine(RenderPythonSuccess(source.Name, pythonResult));
+                    continue;
+                }
+
+                repair = SourceAutoCorrector.Repair(source.Name, source.Text);
                 var result = compiler.Compile(source.Name, repair.SourceText);
                 success++;
 
@@ -168,18 +178,42 @@ public static class WebFrontend
             catch (Exception exception)
             {
                 failed++;
-                if (repair.HasCorrections)
+                if (repair?.HasCorrections == true)
                 {
                     builder.AppendLine(RenderCorrections(repair.Corrections));
                 }
 
-                var sourceText = exception is CompilerException ? repair.SourceText : string.Empty;
+                var sourceText = exception is CompilerException ? repair?.SourceText ?? source.Text : string.Empty;
                 builder.AppendLine(RenderException(exception, source.Name, sourceText));
             }
         }
 
         builder.AppendLine("</section>");
         builder.Insert(0, $"<div class=\"summary\"><strong>{success}</strong> arquivo(s) ok <span>{failed} com erro</span></div>");
+
+        return builder.ToString();
+    }
+
+    private static string RenderPythonSuccess(string sourceName, PythonCompileResult result)
+    {
+        var builder = new StringBuilder();
+
+        builder.AppendLine("<article class=\"result ok\">");
+        builder.AppendLine("<div class=\"result-heading\">");
+        builder.AppendLine("<div>");
+        builder.AppendLine("<span class=\"eyebrow\">Python puro</span>");
+        builder.AppendLine($"<h2>{Escape(DisplayName(sourceName))}</h2>");
+        builder.AppendLine("</div>");
+        builder.AppendLine("<strong>Python</strong>");
+        builder.AppendLine("</div>");
+        builder.AppendLine("<p class=\"message\">Codigo Python compilado com sucesso pelo backend CPython.</p>");
+        builder.AppendLine("<div class=\"metrics\">");
+        builder.AppendLine(Metric("Python", result.PythonVersion));
+        builder.AppendLine(Metric("Linhas", result.LineCount));
+        builder.AppendLine(Metric("Nos AST", result.AstNodeCount));
+        builder.AppendLine(Metric("Bytecode py", result.BytecodeInstructionCount));
+        builder.AppendLine("</div>");
+        builder.AppendLine("</article>");
 
         return builder.ToString();
     }
@@ -271,13 +305,12 @@ public static class WebFrontend
         """;
     }
 
-    private static string RenderPage(string resultHtml = "", string activeTab = "codigo", string? currentSource = null)
+    private static string RenderPage(string resultHtml = "", string activeTab = "codigo")
     {
         var codeActive = activeTab == "codigo" ? "active" : "";
         var githubActive = activeTab == "github" ? "active" : "";
         var zipActive = activeTab == "zip" ? "active" : "";
-        
-        var sampleCode = """
+        var sampleCode = Escape("""
             int n = 5;
             int fat = 1;
 
@@ -287,9 +320,7 @@ public static class WebFrontend
             }
 
             print(fat);
-            """;
-            
-        var displayCode = Escape(currentSource ?? sampleCode);
+            """);
 
         return $$"""
         <!doctype html>
@@ -432,7 +463,7 @@ public static class WebFrontend
                 }
 
                 textarea {
-                    min-height: 500px;
+                    min-height: 280px;
                     resize: vertical;
                     padding: 12px;
                     line-height: 1.45;
@@ -723,7 +754,7 @@ public static class WebFrontend
 
                         <form class="pane {{codeActive}}" data-pane="codigo" method="post" action="/analisar/codigo">
                             <label for="source">Codigo fonte</label>
-                            <textarea id="source" name="source" spellcheck="false">{{displayCode}}</textarea>
+                            <textarea id="source" name="source" spellcheck="false">{{sampleCode}}</textarea>
                             <div class="actions">
                                 <button type="submit">Compilar codigo</button>
                             </div>
@@ -784,6 +815,11 @@ public static class WebFrontend
     private static string Metric(string title, int value)
     {
         return $"<div class=\"metric\"><span>{Escape(title)}</span><strong>{value}</strong></div>";
+    }
+
+    private static string Metric(string title, string value)
+    {
+        return $"<div class=\"metric\"><span>{Escape(title)}</span><strong>{Escape(value)}</strong></div>";
     }
 
     private static IResult Html(string html)
